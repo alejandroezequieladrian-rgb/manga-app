@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manga Studio Ultra Pro - Advanced Layouts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Architects+Daughter&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent: #3b82f6; }
+        
+        html, body { 
+            background-color: #020617; 
+            color: #f8fafc; 
+            font-family: 'Segoe UI', sans-serif; 
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            touch-action: none; 
+        }
+
+        .workspace { 
+            height: calc(100vh - 140px); 
+            width: 100vw;
+            overflow: auto; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start;
+            padding: 80px 20px;
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #zoomContainer {
+            transform-origin: top center;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            justify-content: center;
+        }
+
+        #mangaPage {
+            width: 95vw; 
+            max-width: 600px;
+            aspect-ratio: 1 / 1.41;
+            background: white; 
+            position: relative;
+            box-shadow: 0 10px 80px rgba(0,0,0,0.8);
+            flex-shrink: 0;
+            touch-action: none; 
+            overflow: hidden;
+        }
+
+        /* --- FILTROS DE POST-PROCESADO --- */
+        .filter-classic { filter: grayscale(1) contrast(1.2) brightness(1.1); }
+        .filter-ink { filter: grayscale(1) contrast(300%) brightness(0.9); }
+        .filter-sepia { filter: sepia(0.8) contrast(1.1) brightness(0.95); }
+        .filter-impact { filter: grayscale(1) invert(1) contrast(1.5); }
+
+        /* --- ESTILOS DE PANELES AVANZADOS --- */
+        .panel {
+            position: absolute; 
+            border: 3px solid black; 
+            background-color: #f8fafc;
+            overflow: hidden; 
+            z-index: 5;
+            touch-action: none;
+            min-width: 40px;
+            min-height: 40px;
+        }
+        .panel.selected { border: 4px solid #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); z-index: 50; }
+
+        /* Formas Geométricas Complejas (Basadas en tus imágenes) */
+        .shape-trapezoid-r { clip-path: polygon(0 10%, 100% 0, 100% 90%, 0 100%); }
+        .shape-trapezoid-l { clip-path: polygon(0 0, 100% 10%, 100% 100%, 0 90%); }
+        .shape-shards-1 { clip-path: polygon(0 0, 100% 5%, 85% 100%, 15% 95%); }
+        .shape-diagonal-cut { clip-path: polygon(0 20%, 100% 0, 100% 80%, 0 100%); }
+        .shape-burst { clip-path: polygon(5% 5%, 95% 0, 100% 95%, 0 100%); }
+        .shape-triangle-tl { clip-path: polygon(0 0, 100% 0, 0 100%); }
+        .shape-abstract-1 { clip-path: polygon(10% 0, 100% 15%, 90% 100%, 0 85%); }
+
+        .panel img { 
+            position: absolute; 
+            max-width: none; 
+            user-select: none; 
+            pointer-events: none; 
+            transform-origin: center;
+        }
+
+        .resizer {
+            width: 36px; height: 36px;
+            background: #3b82f6;
+            position: absolute; right: 0; bottom: 0; 
+            z-index: 100; display: none;
+            border-radius: 12px 0 0 0;
+            align-items: center; justify-content: center; color: white;
+            touch-action: none;
+            box-shadow: -2px -2px 10px rgba(0,0,0,0.2);
+        }
+        .panel.selected .resizer { display: flex; }
+
+        .float-item { position: absolute; z-index: 100; touch-action: none; display: flex; align-items: center; justify-content: center; }
+        .float-item.selected { outline: 3px dashed #3b82f6; outline-offset: 4px; }
+        
+        .bubble {
+            background: white; border: 3px solid black; border-radius: 50%; padding: 10px;
+            min-width: 60px; text-align: center; color: black; font-weight: bold;
+        }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0; height: 85px;
+            background: #0f172a; border-top: 2px solid #1e293b;
+            display: flex; justify-content: space-around; align-items: center; z-index: 1000;
+        }
+
+        .drawer {
+            position: fixed; bottom: -100%; left: 0; right: 0;
+            background: #0f172a; border-radius: 32px 32px 0 0;
+            padding: 24px; z-index: 2000; transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 85vh; overflow-y: auto; border-top: 4px solid #3b82f6;
+        }
+        .drawer.open { bottom: 0; }
+
+        .zoom-controls {
+            position: fixed; bottom: 100px; left: 20px;
+            display: flex; flex-direction: column; gap: 10px; z-index: 1500;
+        }
+        .zoom-btn {
+            width: 48px; height: 48px; background: #1e293b;
+            border: 2px solid #334155; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; font-size: 22px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        .template-card {
+            background: #1e293b; border-radius: 16px; padding: 12px;
+            border: 2px solid #334155; display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .template-preview {
+            width: 100%; aspect-ratio: 1; background: #0f172a; border-radius: 8px;
+            position: relative; overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="h-14 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-4 relative z-[4000]">
+        <h1 class="font-black text-white italic tracking-tighter">MANGA <span class="text-blue-500">STUDIO</span></h1>
+        <div class="flex gap-2">
+            <button onclick="openDrawer('filters')" class="bg-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase">Filtros</button>
+            <button onclick="exportPage()" id="btnExport" class="bg-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase">Exportar</button>
+        </div>
+    </header>
+
+    <div class="zoom-controls">
+        <button class="zoom-btn" onclick="adjustPageZoom(0.1)">+</button>
+        <button class="zoom-btn" onclick="adjustPageZoom(-0.1)">−</button>
+        <button class="zoom-btn text-xs" onclick="resetPageZoom()">1:1</button>
+    </div>
+
+    <div class="workspace" id="ws" onclick="deselectAll()">
+        <div id="zoomContainer">
+            <div id="mangaPage"></div>
+        </div>
+    </div>
+
+    <!-- Barra de Edición -->
+    <div id="editTools" class="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-900/95 px-6 py-4 rounded-3xl hidden gap-6 z-[3000] border border-blue-500/30 shadow-2xl items-center backdrop-blur-xl">
+        <button onclick="changeScale(1.2)" class="text-white text-2xl">➕</button>
+        <button onclick="changeScale(0.8)" class="text-white text-2xl">➖</button>
+        <button onclick="changeRot(15)" class="text-white text-2xl">⟳</button>
+        <div class="w-px h-8 bg-slate-700"></div>
+        <button onclick="deleteElement()" class="text-2xl">🗑️</button>
+    </div>
+
+    <nav class="bottom-nav">
+        <button onclick="openDrawer('layouts')" class="flex flex-col items-center"><span class="text-2xl">📐</span><p class="text-[9px] font-bold text-gray-500">DISEÑOS</p></button>
+        <button onclick="openDrawer('bubbles')" class="flex flex-col items-center"><span class="text-2xl">🗨️</span><p class="text-[9px] font-bold text-gray-500">TEXTO</p></button>
+        <button onclick="openDrawer('fxGallery')" class="flex flex-col items-center"><span class="text-2xl">💥</span><p class="text-[9px] font-bold text-gray-500">EFECTOS</p></button>
+        <button onclick="openDrawer('free')" class="flex flex-col items-center"><span class="text-2xl">➕</span><p class="text-[9px] font-bold text-gray-500">AÑADIR</p></button>
+    </nav>
+
+    <!-- Drawer de Plantillas Avanzadas -->
+    <div id="drawerLayouts" class="drawer">
+        <div class="flex justify-between items-center mb-6"><h2 class="font-bold text-blue-400 uppercase tracking-widest">Plantillas de Acción</h2><button onclick="closeDrawers()">✕</button></div>
+        <div class="grid grid-cols-2 gap-4 pb-12">
+            <div class="template-card" onclick="applyL('impact_shatter')">
+                <div class="template-preview flex flex-col gap-1 p-1">
+                    <div class="h-1/3 w-full bg-white/20 shape-trapezoid-r"></div>
+                    <div class="flex h-2/3 gap-1"><div class="w-1/2 bg-white/20 shape-trapezoid-l"></div><div class="w-1/2 bg-white/20 shape-trapezoid-r"></div></div>
+                </div>
+                <span class="text-[10px] font-bold">IMPACTO SHATTER</span>
+            </div>
+            <div class="template-card" onclick="applyL('clash_diagonal')">
+                <div class="template-preview p-1">
+                    <div class="h-1/2 w-full bg-white/20 mb-1 shape-diagonal-cut"></div>
+                    <div class="h-1/2 w-full bg-white/20 shape-diagonal-cut"></div>
+                </div>
+                <span class="text-[10px] font-bold">CLASH DIAGONAL</span>
+            </div>
+            <div class="template-card" onclick="applyL('dynamic_focus')">
+                <div class="template-preview p-1">
+                    <div class="h-full w-full bg-white/20 shape-abstract-1"></div>
+                </div>
+                <span class="text-[10px] font-bold">FOCUS ABSTRACT</span>
+            </div>
+            <div class="template-card" onclick="applyL('shonen_jump')">
+                <div class="template-preview flex flex-col gap-1 p-1">
+                    <div class="h-1/4 bg-white/20"></div>
+                    <div class="h-2/4 bg-white/20 shape-burst"></div>
+                    <div class="h-1/4 bg-white/20"></div>
+                </div>
+                <span class="text-[10px] font-bold">SHONEN JUMP</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="drawerFree" class="drawer">
+        <h2 class="font-bold mb-4 uppercase text-blue-400">Formas Individuales</h2>
+        <div class="grid grid-cols-3 gap-3 pb-12">
+            <button class="bg-slate-800 p-4 rounded-xl text-xs font-bold" onclick="addFreePanel('shape-trapezoid-r')">INCLINADO R</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-xs font-bold" onclick="addFreePanel('shape-trapezoid-l')">INCLINADO L</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-xs font-bold" onclick="addFreePanel('shape-shards-1')">FRAGMENTO</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-xs font-bold" onclick="addFreePanel('shape-burst')">EXPLOSIÓN</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-xs font-bold" onclick="addFreePanel('')">RECTÁNGULO</button>
+        </div>
+    </div>
+
+    <!-- Otros Drawers (Resumidos) -->
+    <div id="drawerFilters" class="drawer">
+        <h2 class="font-bold mb-6 uppercase text-indigo-400">Post-Procesado</h2>
+        <div class="flex flex-col gap-3 pb-12">
+            <button class="bg-slate-800 p-4 rounded-xl text-left font-bold" onclick="setMangaFilter('classic')">MANGA CLÁSICO</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-left font-bold" onclick="setMangaFilter('ink')">TINTA NEGRA (INK)</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-left font-bold" onclick="setMangaFilter('impact')">IMPACTO INVERTIDO</button>
+            <button class="bg-slate-800 p-4 rounded-xl text-left font-bold" onclick="setMangaFilter('none')">ORIGINAL</button>
+        </div>
+    </div>
+
+    <div id="drawerBubbles" class="drawer"><div class="grid grid-cols-2 gap-4 pb-12"><button class="bg-slate-800 p-6 rounded-2xl font-bold" onclick="addBubble('std')">DIÁLOGO</button><button class="bg-slate-800 p-6 rounded-2xl font-bold" onclick="addBubble('box')">NARRACIÓN</button></div></div>
+    
+    <div id="drawerFxGallery" class="drawer"><div class="grid grid-cols-5 gap-2 pb-12" id="fxGrid"></div></div>
+
+    <input type="file" id="fileInp" hidden accept="image/*">
+
+    <script>
+        const page = document.getElementById('mangaPage');
+        const zoomContainer = document.getElementById('zoomContainer');
+        const fileInp = document.getElementById('fileInp');
+        const editTools = document.getElementById('editTools');
+        let selectedEl = null;
+        let selectedImg = null;
+        let currentZoom = 1.0;
+
+        // --- SISTEMA DE PLANTILLAS AVANZADAS ---
+        const layouts = {
+            impact_shatter: [
+                {x:2, y:2, w:96, h:30, s:'shape-trapezoid-r'},
+                {x:2, y:34, w:46, h:63, s:'shape-trapezoid-l'},
+                {x:52, y:34, w:46, h:63, s:'shape-shards-1'}
+            ],
+            clash_diagonal: [
+                {x:2, y:2, w:96, h:45, s:'shape-diagonal-cut'},
+                {x:2, y:52, w:96, h:45, s:'shape-diagonal-cut'}
+            ],
+            dynamic_focus: [
+                {x:5, y:5, w:90, h:90, s:'shape-abstract-1'}
+            ],
+            shonen_jump: [
+                {x:2, y:2, w:96, h:20},
+                {x:2, y:25, w:96, h:50, s:'shape-burst'},
+                {x:2, y:78, w:96, h:20}
+            ]
+        };
+
+        function applyL(key) {
+            page.innerHTML = '';
+            layouts[key].forEach(createPanel);
+            closeDrawers();
+        }
+
+        function createPanel({x, y, w, h, s}) {
+            const p = document.createElement('div');
+            p.className = 'panel';
+            if(s) p.classList.add(s);
+            p.style.left = x + '%'; p.style.top = y + '%';
+            p.style.width = w + '%'; p.style.height = h + '%';
+            
+            const resizer = document.createElement('div');
+            p.appendChild(resizer);
+            resizer.className = 'resizer'; resizer.innerHTML = '📐';
+
+            p.onclick = (e) => { e.stopPropagation(); select(p); };
+            
+            // Doble tap para subir imagen
+            let lastTap = 0;
+            p.addEventListener('touchstart', (e) => {
+                const now = Date.now();
+                if(now - lastTap < 300) { select(p); fileInp.click(); }
+                lastTap = now;
+            });
+            
+            makeDraggable(p);
+            makeResizable(p, resizer);
+            page.appendChild(p);
+            return p;
+        }
+
+        // --- LÓGICA DE TRANSFORMACIÓN ---
+        function makeDraggable(el) {
+            let sx, sy, ox, oy, isInner;
+            const start = (e) => {
+                if(e.target.classList.contains('resizer') || e.target.hasAttribute('contenteditable')) return;
+                const t = e.touches ? e.touches[0] : e;
+                sx = t.clientX; sy = t.clientY;
+                isInner = (selectedEl === el && selectedImg && !el.classList.contains('float-item'));
+                if(isInner) { ox = parseInt(selectedImg.style.left) || 0; oy = parseInt(selectedImg.style.top) || 0; }
+                else { ox = el.offsetLeft; oy = el.offsetTop; }
+                document.onmousemove = move; document.ontouchmove = move;
+                document.onmouseup = end; document.ontouchend = end;
+            };
+            const move = (e) => {
+                const t = e.touches ? e.touches[0] : e;
+                const dx = (t.clientX - sx) / currentZoom; 
+                const dy = (t.clientY - sy) / currentZoom;
+                if(isInner) { selectedImg.style.left = (ox+dx)+'px'; selectedImg.style.top = (oy+dy)+'px'; }
+                else { el.style.left = (ox+dx)+'px'; el.style.top = (oy+dy)+'px'; }
+            };
+            const end = () => { document.onmousemove = document.ontouchmove = null; };
+            el.addEventListener('mousedown', start); el.addEventListener('touchstart', start, {passive: false});
+        }
+
+        function makeResizable(el, handle) {
+            let sx, sy, sw, sh;
+            handle.addEventListener('touchstart', (e) => {
+                e.stopPropagation(); e.preventDefault();
+                const t = e.touches[0];
+                sx = t.clientX; sy = t.clientY;
+                sw = el.offsetWidth; sh = el.offsetHeight;
+                const move = (me) => {
+                    const mt = me.touches[0];
+                    el.style.width = (sw + (mt.clientX - sx) / currentZoom) + 'px';
+                    el.style.height = (sh + (mt.clientY - sy) / currentZoom) + 'px';
+                };
+                const end = () => { document.removeEventListener('touchmove', move); };
+                document.addEventListener('touchmove', move, {passive:false});
+                document.addEventListener('touchend', end, {once:true});
+            });
+        }
+
+        // --- UTILIDADES ---
+        function adjustPageZoom(d) { currentZoom = Math.max(0.3, Math.min(2, currentZoom + d)); updateZoom(); }
+        function resetPageZoom() { currentZoom = 1; updateZoom(); }
+        function updateZoom() { 
+            zoomContainer.style.transform = `scale(${currentZoom})`; 
+            zoomContainer.style.marginBottom = (page.offsetHeight * (currentZoom-1)) + "px";
+        }
+
+        function select(el) {
+            if(selectedEl) selectedEl.classList.remove('selected');
+            selectedEl = el; selectedEl.classList.add('selected');
+            selectedImg = el.querySelector('img');
+            editTools.style.display = 'flex';
+        }
+
+        function deselectAll() { 
+            if(selectedEl) selectedEl.classList.remove('selected');
+            selectedEl = null; editTools.style.display = 'none'; 
+        }
+
+        function addFreePanel(shape) { createPanel({x:10, y:10, w:40, h:30, s:shape}); closeDrawers(); }
+        function addBubble(type) {
+            const b = document.createElement('div');
+            b.className = 'float-item bubble'; b.style.left = '30%'; b.style.top = '30%';
+            b.innerHTML = `<div contenteditable="true" style="outline:none; min-width:40px;">TEXTO</div>`;
+            if(type==='box') b.style.borderRadius = '4px';
+            b.onclick = (e) => { e.stopPropagation(); select(b); };
+            makeDraggable(b); page.appendChild(b); closeDrawers();
+        }
+
+        function changeScale(d) {
+            if(selectedImg) {
+                let s = parseFloat(selectedImg.dataset.s || 1) * d;
+                selectedImg.dataset.s = s; 
+                selectedImg.style.transform = `scale(${s}) rotate(${selectedImg.dataset.r || 0}deg)`;
+            } else if(selectedEl?.classList.contains('bubble')) {
+                let fs = parseFloat(window.getComputedStyle(selectedEl).fontSize);
+                selectedEl.style.fontSize = (fs * d) + 'px';
+            }
+        }
+
+        function changeRot(deg) {
+            if(!selectedImg) return;
+            let r = (parseInt(selectedImg.dataset.r || 0) + deg) % 360;
+            selectedImg.dataset.r = r;
+            selectedImg.style.transform = `scale(${selectedImg.dataset.s || 1}) rotate(${r}deg)`;
+        }
+
+        function setMangaFilter(f) {
+            page.className = '';
+            if(f !== 'none') page.classList.add('filter-' + f);
+            closeDrawers();
+        }
+
+        function deleteElement() { if(selectedEl) { selectedEl.remove(); deselectAll(); } }
+        function openDrawer(id) { closeDrawers(); document.getElementById('drawer' + id.charAt(0).toUpperCase() + id.slice(1)).classList.add('open'); }
+        function closeDrawers() { document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open')); }
+
+        fileInp.onchange = (e) => {
+            const file = e.target.files[0];
+            if(!file || !selectedEl) return;
